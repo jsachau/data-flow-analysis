@@ -1,0 +1,28 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+    <div class="container">
+        <h2>Available Mappings</h2>
+        <div class="text-muted">
+            This page contains all scanned mappings. Click on any mapping to access its
+            documentation page. Note that the mappings were generated automatically.
+        </div>
+        <hr/>
+        <div class="list-group mt-4">
+            {% for mapping in mappings %}
+
+                <a href="{% url "mapping" id=mapping.pk %}"
+                   class="list-group-item list-group-item-action flex-column align-items-start">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">{{ mapping.display_name }}</h5>
+                        <small>{% if mapping.date %}{{ mapping.date }}{% endif %}</small>
+                    </div>
+                    <p class="mb-1">
+                        {{ mapping.description }}
+                    </p>
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+
+{% endblock %}

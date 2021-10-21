@@ -1,0 +1,481 @@
+{% extends "core/base.html" %}
+
+{% block resources %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"
+            integrity="sha512-XHDcSyqhOoO2ocB7sKOCJEkUjw/pQCJViP1ynpy+EGh/LggzrP6U/V3a++LQTnZT7sCQKeHRyWHfhN2afjXjCg=="
+            crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css"
+          integrity="sha512-8OVtKyemDe8Koi/74dnSJughhkwnzqq217zUtUumyvx0Z0kF6H0YYFobH2kEYjKMNq2xNQyN64dnleqecTSL0A=="
+          crossorigin="anonymous"/>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jspdf/1.3.3/jspdf.min.js"></script>
+
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        {% if graph.nodes %}
+            <div class="mb-2 row text-right">
+
+                <div class="col-lg-2 offset-lg-4 col-6">
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <div class="input-group-text"><i class="fas fa-search"></i></div>
+                        </div>
+                        <input class="form-control" type="text" id="searchInput"/>
+                    </div>
+                </div>
+
+                <div class="col-lg-6 col-6">
+
+                    <button id="downloadMapping" class="btn btn-light"><i class="fas fa-download"></i></button>
+
+                    <button id="toggleInfo" class="btn btn-light">
+                        <i class="fas fa-expand"></i>
+                        <i class="fas fa-compress" style="display: none;"></i>
+                    </button>
+
+                    <button class="toggle-text-graph btn btn-light">
+                        <i class="fas fa-align-left"></i>
+                        <i class="fas fa-project-diagram" style="display: none;"></i>
+                    </button>
+
+                    <button id="toggleHasMapping" class="btn btn-primary">Toggle unmapped attributes</button>
+
+                </div>
+            </div>
+        {% endif %}
+
+        <div class="row">
+            <div class="info-panel col-12 col-lg-4">
+                {% if user.is_authenticated %}
+                    <a class="float-right" href="{% url "edit-mapping" mapping.pk %}">[Edit]</a>
+                {% endif %}
+                <h3>{{ mapping.display_name }}</h3>
+                <hr/>
+
+                <span class="text-muted">
+                    {{ mapping.description }}
+                </span>
+
+                <div class="row mt-3">
+                    {% if mapping.author %}
+                        <div class="col-6"><strong>Template Author:</strong></div>
+                        <div class="col-6">{{ mapping.author }}</div>
+                    {% endif %}
+
+                    {% if mapping.date %}
+                        <div class="col-6"><strong>Template Date:</strong></div>
+                        <div class="col-6">{{ mapping.date }}</div>
+                    {% endif %}
+                    {% if mapping.organisation %}
+                        <div class="col-6"><strong>Organization:</strong></div>
+                        <div class="col-6">{{ mapping.organisation }}</div>
+                    {% endif %}
+
+                    {% if mapping.email %}
+                        <div class="col-6"><strong>Email:</strong></div>
+                        <div class="col-6"><a href="mailto:{{ mapping.email }}">{{ mapping.email }}</a></div>
+                    {% endif %}
+
+                    <div class="col-6"><strong>Quicklinks:</strong></div>
+                    <div class="col-6">
+                        <a class="badge badge-light" href="github.com"><i class="fab fa-github"></i> Code</a>
+                        <a class="badge badge-success" href="github.com">CKM</a>
+                        <a class="badge badge-warning" href="https://simplifier.net/">Simplifier</a>
+                    </div>
+                </div>
+            </div>
+
+            {% if graph.nodes %}
+                <div class="content-panel col-12 col-lg-8">
+                    <div class="graph-mapping-container">
+
+                        <div class="network-container">
+                            <div id="network"></div>
+                            <div id="graphIndicator" class="indicator text-center" style="display: none;">
+                                <i class="fas fa-3x fa-cog fa-spin"></i>
+                            </div>
+
+                            <div id="minimapWrapper" class="minimapWrapperIdle">
+                                <img id="minimapImage" class="minimapImage"/>
+                                <div id="minimapRadar" class="minimapRadar"></div>
+                            </div>
+                        </div>
+
+
+                    </div>
+
+                    <div class="text-mapping-container" style="display: none;">
+                        <div class="container">
+                            <h3>Template Classes</h3>
+                            {% for template_class in mapping.template_classes.all %}
+                                {% if template_class.attributes.count > 0 %}
+                                    <div class="card mb-2 template-class has-mapping-data-{{ template_class.has_mapping_data }}"
+                                         {% if not template_class.has_mapping_data %}style="display: none;" {% endif %}>
+                                        <div class="card-body">
+                                            <h5 class="card-title">{{ template_class.name }}</h5>
+                                            <table class="table table-striped">
+                                                {% for attribute in template_class.attributes.all %}
+                                                    <tr class="template-attribute has-mapping-data-{{ attribute.has_mapping_data }}"
+                                                        {% if not attribute.has_mapping_data %}style="display: none;" {% endif %}>
+                                                        <td style="word-break: break-all" width="50%">
+                                                            <strong>{{ attribute.name }}</strong><br/>
+                                                            <small class="text-muted"
+                                                                   style="word-break: break-all">
+                                                                {{ attribute.cleaned_type_name
+                                                                        }}</small><br/>
+                                                            <small class="text-muted"
+                                                                   style="word-break: break-all">{{ attribute.path }}</small>
+                                                        </td>
+                                                        <td style="word-break: break-all">
+                                                            {% for fhir_attribute in attribute.mapped_from.all %}
+                                                                <small class="text-primary"
+                                                                       style="word-break: break-all">
+                                                                    {% for name in fhir_attribute.full_path %}
+                                                                        {{ name }}{% if not forloop.last %}
+                                                                            <span class="text-dark">&nbsp;>&nbsp;</span>
+                                                                        {% endif %}
+                                                                    {% endfor %}
+                                                                </small>
+                                                                {% if not forloop.last %}<br>{% endif %}
+                                                            {% empty %}
+                                                                <small class="text-muted">
+                                                                    This attribute is not mapped directly.
+                                                                    {% if attribute.has_mapping_data %}Attributes for
+                                                                        this
+                                                                        type were mapped.{% endif %}
+                                                                </small>
+                                                            {% endfor %}
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </table>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="col-12 col-lg-8 text-muted text-center mt-5">This mapping has no data.</div>
+            {% endif %}
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block script %}
+    {% if graph.nodes %}
+        <script>
+            let indicator = $("#graphIndicator");
+            let toggleHasMapping = $("#toggleHasMapping");
+            let networkContainer = $("#network");
+            let network = null;
+            const ratio = 4; // Ratio is difference between original VisJS Network and Minimap.
+
+
+            function draw() {
+                if (network !== null) {
+                    network.destroy();
+                    network = null;
+                }
+
+                let toggleNodesVisible = false;
+
+                let nodeArray = JSON.parse("{{ graph.nodes|escapejs }}");
+                let edgeArray = JSON.parse("{{ graph.edges|escapejs }}");
+
+                let nodes = new vis.DataSet();
+                let edges = new vis.DataSet(edgeArray);
+
+                function updateNodes() {
+                    var promise = $.when();
+
+                    promise = promise.then(function () {
+                        networkContainer.hide();
+                        indicator.show();
+                        toggleHasMapping.attr('disabled', true);
+                    })
+
+                    $.each(nodeArray, function (index, el) {
+                        promise = promise.then(function () {
+                            if (toggleNodesVisible && !el.hasMappingData) {
+                                nodes.remove(el.id);
+                            } else if (!toggleNodesVisible && !el.hasMappingData) {
+                                nodes.add(el);
+                            }
+                        });
+                    });
+
+                    promise = promise.then(function () {
+                        networkContainer.show();
+                        indicator.hide();
+                        toggleHasMapping.attr('disabled', false);
+                    });
+
+                    return promise;
+                }
+
+                nodeArray.forEach(function (el) {
+                    if (toggleNodesVisible) {
+                        nodes.add(el);
+                    } else if (el.hasMappingData) {
+                        nodes.add(el);
+                    }
+                });
+
+
+                // create the network
+                let data = {
+                    nodes: nodes,
+                    edges: edges
+                };
+                let options = {
+                    layout: {
+                        hierarchical: {
+                            levelSeparation: 150,
+                            nodeSpacing: 200,
+                        }
+                    },
+                    edges: {
+                        smooth: true,
+                        arrows: {to: true},
+                        color: {
+                            inherit: false,
+                            opacity: 1.0,
+                            highlight: "#d44b23"
+                        }
+                    },
+                    physics: {
+                        hierarchicalRepulsion: {
+                            centralGravity: 0.5,
+                            springLength: 150,
+                            springConstant: 0.01,
+                            nodeDistance: 250,
+                            damping: 0.09
+                        }
+                    }
+                };
+                network = new vis.Network(networkContainer[0], data, options);
+
+                let lastSearch = "";
+                let currentIndex = -1;
+
+                $("#searchInput").keydown(function (e) {
+                    e.stopImmediatePropagation();
+
+                    if (e.which === 13) {
+                        let value = $(this).val().toLowerCase();
+
+                        let items = nodes.get({
+                            fields: ['id'],
+                            filter: function (item) {
+                                return value === undefined || value === "" || item.label.toLowerCase().includes(value);
+                            }
+                        });
+
+                        let nodeIds = [];
+
+                        items.forEach(function (it) {
+                            nodeIds.push(it.id);
+                        });
+
+                        nodes.forEach(function (el) {
+                            if (nodeIds.includes(el.id)) {
+                                el.color.background = el.color.backupBackground;
+                            } else {
+                                el.color.background = "#cccccc";
+                            }
+
+                            nodes.update(el);
+                        });
+
+                        if (lastSearch === value) {
+                            currentIndex = (currentIndex + 1) % nodeIds.length;
+                        } else {
+                            lastSearch = value;
+                            currentIndex = 0;
+                        }
+
+
+                        if (nodeIds.length > 0 && value !== undefined && value !== "") {
+                            network.selectNodes(nodeIds, true);
+                            //network.focus(nodeIds[0], {scale: 1.0, animation: true});
+                            network.moveTo({
+                                position: network.getPositions([nodeIds[currentIndex]])[nodeIds[currentIndex]],
+                                scale: 1.0,
+                                animation: true
+                            });
+                        }
+
+                    }
+                });
+
+
+                network.on("stabilizationProgress", function (params) {
+                    indicator.show();
+                });
+                network.once("stabilizationIterationsDone", function () {
+                    indicator.hide();
+                });
+
+                const drawMinimapWrapper = () => {
+                    const {
+                        clientWidth,
+                        clientHeight
+                    } = network.body.container;
+                    const minimapWrapper = document.getElementById('minimapWrapper');
+                    const width = Math.round(clientWidth / ratio);
+                    const height = Math.round(clientHeight / ratio);
+
+                    minimapWrapper.style.width = `${width}px`;
+                    minimapWrapper.style.height = `${height}px`;
+                }
+
+                const drawMinimapImage = () => {
+                    const originalCanvas = document.getElementsByTagName('canvas')[0]
+                    const minimapImage = document.getElementById('minimapImage')
+
+                    const {
+                        clientWidth,
+                        clientHeight
+                    } = network.body.container
+
+                    const tempCanvas = document.createElement('canvas')
+                    const tempContext = tempCanvas.getContext('2d')
+
+                    const width = Math.round((tempCanvas.width = clientWidth / ratio))
+                    const height = Math.round((tempCanvas.height = clientHeight / ratio))
+
+                    if (tempContext) {
+                        tempContext.drawImage(originalCanvas, 0, 0, width, height)
+                        minimapImage.src = tempCanvas.toDataURL()
+                        minimapImage.width = width
+                        minimapImage.height = height
+                    }
+                }
+
+                const drawRadar = () => {
+                    const {
+                        clientWidth,
+                        clientHeight
+                    } = network.body.container
+                    const minimapRadar = document.getElementById('minimapRadar')
+                    const {
+                        targetScale
+                    } = network.view
+                    const scale = network.getScale()
+                    const translate = network.getViewPosition()
+                    minimapRadar.style.transform = `translate(${(translate.x / ratio) *
+                    targetScale}px, ${(translate.y / ratio) * targetScale}px) scale(${targetScale / scale})`
+                    minimapRadar.style.width = `${clientWidth / ratio}px`
+                    minimapRadar.style.height = `${clientHeight / ratio}px`
+                }
+
+                const afterDrawing = (rerender = false) => {
+                    const {
+                        clientWidth,
+                        clientHeight
+                    } = network.body.container;
+                    const width = Math.round(clientWidth / ratio);
+                    const height = Math.round(clientHeight / ratio);
+                    const minimapImage = document.getElementById('minimapImage');
+                    const minimapWrapper = document.getElementById('minimapWrapper');
+
+                    if (rerender) {
+                        minimapImage.removeAttribute('src');
+                    }
+
+                    // Initial render
+                    if (!minimapImage.hasAttribute('src') || minimapImage.src === '') {
+                        if (!minimapWrapper.style.width || !minimapWrapper.style.height) {
+                            drawMinimapWrapper();
+                        }
+                        drawMinimapImage();
+                        drawRadar();
+                    } else if (
+                        minimapWrapper.style.width !== `${width}px` ||
+                        minimapWrapper.style.height !== `${height}px`
+                    ) {
+                        minimapImage.removeAttribute('src');
+                        drawMinimapWrapper();
+                        network.fit();
+                    } else {
+                        drawRadar();
+                    }
+                }
+                network.on('afterDrawing', afterDrawing);
+
+                network.on('resize', () => {
+                    network.fit();
+                });
+                network.on('dragStart', () => {
+                    const minimapWrapper = document.getElementById('minimapWrapper');
+                    minimapWrapper.classList.remove('minimapWrapperIdle');
+                    minimapWrapper.classList.add('minimapWrapperMove');
+                });
+                network.on('dragEnd', () => {
+                    const minimapWrapper = document.getElementById('minimapWrapper');
+                    minimapWrapper.classList.remove('minimapWrapperMove');
+                    minimapWrapper.classList.add('minimapWrapperIdle')
+                });
+                network.on('zoom', () => {
+                    const minimapWrapper = document.getElementById('minimapWrapper');
+                    minimapWrapper.classList.remove('minimapWrapperIdle');
+                    minimapWrapper.classList.add('minimapWrapperMove')
+                });
+
+                toggleHasMapping.click(function (e) {
+                    e.preventDefault();
+                    let promise = updateNodes();
+                    promise.then(function () {
+                        network.fit();
+                        toggleNodesVisible = !toggleNodesVisible;
+                        afterDrawing(true);
+                    });
+
+                    if (toggleNodesVisible) {
+                        $(".template-class.has-mapping-data-False").hide();
+                        $(".template-attribute.has-mapping-data-False").hide();
+                    } else {
+                        $(".template-class").show();
+                        $(".template-attribute").show();
+                    }
+                });
+            }
+
+            draw();
+
+            $(".toggle-text-graph").click(function (e) {
+                e.preventDefault();
+
+                $(".graph-mapping-container").toggle();
+                $(".text-mapping-container").toggle();
+
+
+                $(this).find('i').toggle();
+                network.fit();
+            });
+
+            //$(".toggle-text-graph").click();
+
+            $("#toggleInfo").click(function () {
+                $(".info-panel").toggle();
+                $(".content-panel").toggleClass("col-lg-8");
+                $(this).find('i').toggle();
+            });
+
+            $("#downloadMapping").click(function () {
+                var canvas = networkContainer.find('canvas')[0];
+                canvas.style.backgroundColor = "#ffffff";
+                var imgData = canvas.toDataURL("image/jpeg", 1.0);
+                var pdf = new jsPDF('p', 'pt', [1000, 3000]);
+                pdf.addImage(imgData, 'JPEG', 0, 0);
+                pdf.save("download.pdf");
+            });
+
+        </script>
+    {% endif %}
+{% endblock %}

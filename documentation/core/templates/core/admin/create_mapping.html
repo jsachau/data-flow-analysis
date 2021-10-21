@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block resources %}
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+
+        <h1>Create a new mapping</h1>
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+            {{ form|crispy }}
+            <button type="submit" class="btn btn-success">Create Mapping</button>
+        </form>
+
+    </div>
+
+{% endblock %}
+
+{% block script %}
+
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "core/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block resources %}
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+
+        <h1>Edit Mapping {{ mapping.display_name }}</h1>
+
+        <hr/>
+
+        <a class="text-success float-right mt-1 pt-2" href="{% url "add-template-class" mapping.pk %}">
+            <i class="fas fa-lg fa-plus"></i>
+        </a>
+
+        <h3>Template Classes</h3>
+
+        <table class="table table-striped">
+            {% for tc in mapping.template_classes.all %}
+                <tr class="bg-info text-white">
+                    <td>{{ tc.name }}</td>
+                    <td>
+                        <a class="text-white" href="{% url "edit-template" tc.pk %}">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                    </td>
+                    <td><a class="text-white" href="{% url "delete-template-class" tc.pk %}"><i class="fas fa-trash"></i></a></td>
+                </tr>
+
+                {% for attr in tc.attributes.all %}
+                    <tr>
+                        <td class="pl-5">---- {{ attr.name }}</td>
+                        <td>
+                            <a class="text-dark" href="{% url "edit-template-attribute" attr.pk %}">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                        <td>
+                            <a class="text-danger" href="{% url "delete-template-attribute" attr.id %}">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                {% endfor %}
+
+                <tr>
+                    <td colspan="3" class="pl-5 text-success">
+                        <i class="fas fa-plus"></i> <a href="{% url "add-template-attribute" tc.pk  %}">Add template attribute</a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
+
+    </div>
+
+{% endblock %}
+
+{% block script %}
+
+{% endblock %}
